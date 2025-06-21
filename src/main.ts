@@ -51,7 +51,7 @@ controls.enableDamping = true
 controls.dampingFactor = 0.05
 controls.minDistance = 5
 controls.maxDistance = 200
-controls.maxPolarAngle = Math.PI / 2
+controls.maxPolarAngle = Math.PI / 2.1
 
 // Handle resize
 window.addEventListener('resize', () => {
@@ -92,8 +92,6 @@ function updateFlyingObjects(t: number) {
 
   drones.forEach((drone, i) => {
     drone.position.y = 20 + Math.sin(t * 3 + i) * 2
-    drone.rotation.y += 0.05
-    drone.rotation.x += 0.02
   })
 }
 

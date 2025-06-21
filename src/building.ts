@@ -4,7 +4,7 @@ import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 export const flyingCars: THREE.Object3D[] = [];
-export const drones: THREE.Mesh[] = [];
+export const drones: THREE.Object3D[] = [];
 
 export function addCityLayout(scene: THREE.Scene) {
   const buildingGeometries: THREE.BufferGeometry[] = [];
@@ -117,20 +117,35 @@ export function addCityLayout(scene: THREE.Scene) {
   if (lineMesh) scene.add(lineMesh);
   if (lightPolesMesh) scene.add(lightPolesMesh);
 
-  // Drones
-  const droneGeometry = new THREE.SphereGeometry(0.6, 8, 8);
-  const droneMaterial = new THREE.MeshStandardMaterial({ color: 0xff00ff, emissive: 0x660066, emissiveIntensity: 1.2, metalness: 0.3, roughness: 0.5 });
+  const loader = new GLTFLoader();
+
+  // Drones using GLTF models
+loader.load('/models/drone.glb', (gltf) => {
   for (let i = 0; i < 8; i++) {
-    const drone = new THREE.Mesh(droneGeometry, droneMaterial);
-    drone.castShadow = true;
-    drone.position.set(-80 + i * 20, 20 + Math.random() * 5, 80 + Math.random() * 60);
-    scene.add(drone);
-    drones.push(drone);
+    const droneModel = gltf.scene.clone();
+    droneModel.traverse((child: any) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+
+    const x = -80 + i * 20;
+    const z = 80 + Math.random() * 60;
+    const baseY = 20 + Math.random() * 5;
+
+    droneModel.position.set(x, baseY, z);
+
+    droneModel.userData.baseY = baseY;
+    droneModel.userData.offset = Math.random() * Math.PI * 2; // phase offset for varied motion
+
+    scene.add(droneModel);
+    drones.push(droneModel);
   }
+});
 
   // Flying Cars via GLTF model
-  const loader = new GLTFLoader();
-  loader.load('/models/race.glb', (gltf) => {
+  loader.load('/models/flying_beetle_car.glb', (gltf) => {
     for (let i = 0; i < 5; i++) {
       const model = gltf.scene.clone();
       model.traverse((child: any) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }});
