@@ -91,7 +91,7 @@ function updateFlyingObjects(t: number) {
   })
 
   drones.forEach((drone, i) => {
-    drone.position.y = 20 + Math.sin(t * 3 + i) * 2
+    drone.position.y = 50 + Math.sin(t * 3 + i) * 2
   })
 }
 
