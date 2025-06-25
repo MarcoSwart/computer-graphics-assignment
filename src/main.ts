@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
 import Stats from 'three/addons/libs/stats.module.js'
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js'
-import { addCityLayout, drones, flyingCars } from './building'
+import { addCityLayout, drones, flyingCars } from './cityLayout'
 import { addPlane } from './plane'
 import { addLenflare, createLight, createLightHelper } from './light'
 import { createRenderer } from './renderer'
@@ -69,30 +69,36 @@ addCityLayout(scene)
 const stats = new Stats()
 document.body.appendChild(stats.dom)
 
-const gui = new GUI({ width: 400 }).close()
-gui.addFolder('Renderer').add(renderer, 'toneMappingExposure', 0, 2, 0.01)
-gui.addFolder('Background').add(scene, 'backgroundIntensity', 0, 2, 0.01)
-gui.addFolder('Background').add(scene, 'backgroundBlurriness', 0, 2, 0.01)
-gui.addFolder('Environment').add(scene, 'environmentIntensity', 0, 2, 0.01)
-gui.addFolder('Light Helper').add(lightHelper, 'visible')
+const gui = new GUI({ width: 400 }).open()
+const config = {
+  animateCars: true,
+  animateDrones: true
+}
+
+gui.add(config, 'animateCars').name('Enable Car Animation')
+gui.add(config, 'animateDrones').name('Enable Drone Animation')
 
 const clock = new THREE.Clock()
 
 function updateFlyingObjects(t: number) {
-  flyingCars.forEach((car, i) => {
-    const { pathStart, pathEnd, speed, offset } = car.userData
-    const total = 200
-    const tMod = ((t * speed + offset) % total) / total
-    const dir = tMod < 0.5 ? 1 : -1
-    const progress = dir === 1 ? tMod * 2 : (1 - tMod) * 2
-    car.position.lerpVectors(pathStart, pathEnd, progress)
-    car.position.y = 14 + Math.sin(t * 3 + i) * 1.2
-    car.rotation.y = dir === 1 ? 0 : Math.PI
-  })
+  if (config.animateCars) {
+    flyingCars.forEach((car, i) => {
+      const { pathStart, pathEnd, speed, offset } = car.userData
+      const total = 200
+      const tMod = ((t * speed + offset) % total) / total
+      const dir = tMod < 0.5 ? 1 : -1
+      const progress = dir === 1 ? tMod * 2 : (1 - tMod) * 2
+      car.position.lerpVectors(pathStart, pathEnd, progress)
+      car.position.y = 14 + Math.sin(t * 3 + i) * 1.2
+      car.rotation.y = dir === 1 ? 0 : Math.PI
+    })
+  }
 
+  if (config.animateDrones) {
   drones.forEach((drone, i) => {
     drone.position.y = 50 + Math.sin(t * 3 + i) * 2
   })
+}
 }
 
 function animate() {
