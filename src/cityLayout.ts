@@ -22,8 +22,8 @@ export function addCityLayout(scene: THREE.Scene) {
   const halfCitySize = (cols * lotSize) / 2;
 
   const textureLoader = new THREE.TextureLoader();
-  const facadeTexture = textureLoader.load('/textures/facade_specular.png');
-  const bumpMap = textureLoader.load('/textures/concrete.png');
+  const facadeTexture = textureLoader.load('textures/facade_specular.png');
+  const bumpMap = textureLoader.load('textures/concrete.png');
   facadeTexture.wrapS = facadeTexture.wrapT = THREE.RepeatWrapping;
   bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
   facadeTexture.repeat.set(2, 4);
@@ -120,7 +120,7 @@ export function addCityLayout(scene: THREE.Scene) {
   const loader = new GLTFLoader();
 
   // Drones using GLTF models
-loader.load('/models/drone.glb', (gltf) => {
+loader.load('models/drone.glb', (gltf) => {
   for (let i = 0; i < 8; i++) {
     const droneModel = gltf.scene.clone();
     droneModel.traverse((child: any) => {
@@ -145,7 +145,7 @@ loader.load('/models/drone.glb', (gltf) => {
 });
 
   // Flying Cars via GLTF model
-  loader.load('/models/flying_beetle_car.glb', (gltf) => {
+  loader.load('models/flying_beetle_car.glb', (gltf) => {
     for (let i = 0; i < 5; i++) {
       const model = gltf.scene.clone();
       model.traverse((child: any) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }});
