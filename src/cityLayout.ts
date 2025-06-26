@@ -146,7 +146,7 @@ loader.load('models/drone.glb', (gltf) => {
 
   // Flying Cars via GLTF model
   loader.load('models/flying_beetle_car.glb', (gltf) => {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 9; i++) {
       const model = gltf.scene.clone();
       model.traverse((child: any) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }});
       const roadCol = i + 1;
