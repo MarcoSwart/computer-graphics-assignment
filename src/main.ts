@@ -27,7 +27,7 @@ const renderer = createRenderer()
 
 // Environment texture
 const environmentTexture = new THREE.CubeTextureLoader()
-  .setPath('https://sbcode.net/img/')
+  .setPath('img/')
   .load(['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png'])
 
 scene.environment = environmentTexture
