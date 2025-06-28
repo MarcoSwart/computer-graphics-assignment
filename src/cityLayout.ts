@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'
 
 export const flyingCars: THREE.Object3D[] = [];
 export const drones: THREE.Object3D[] = [];
@@ -23,15 +24,11 @@ export function addCityLayout(scene: THREE.Scene) {
 
   const textureLoader = new THREE.TextureLoader();
   const facadeTexture = textureLoader.load('textures/facade_specular.png');
-  const bumpMap = textureLoader.load('textures/concrete.png');
   facadeTexture.wrapS = facadeTexture.wrapT = THREE.RepeatWrapping;
-  bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
   facadeTexture.repeat.set(2, 4);
-  bumpMap.repeat.set(4, 4);
 
   const buildingMaterial = new THREE.MeshStandardMaterial({
     map: facadeTexture,
-    bumpMap: bumpMap,
     bumpScale: 0.5,
     roughness: 0.3,
     metalness: 0.6,
@@ -118,9 +115,12 @@ export function addCityLayout(scene: THREE.Scene) {
   if (lightPolesMesh) scene.add(lightPolesMesh);
 
   const loader = new GLTFLoader();
+  const dracoLoader = new DRACOLoader()
+  dracoLoader.setDecoderPath('jsm/libs/draco/') // loading from own webserver
+  loader.setDRACOLoader(dracoLoader);
 
   // Drones using GLTF models
-loader.load('models/drone.glb', (gltf) => {
+loader.load('models/drone_compressed.glb', (gltf) => {
   for (let i = 0; i < 8; i++) {
     const droneModel = gltf.scene.clone();
     droneModel.traverse((child: any) => {
