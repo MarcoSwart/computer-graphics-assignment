@@ -21,29 +21,29 @@ const lightOffset = new THREE.Vector3(100, 30, 70)
 const lightHelper = createLightHelper(light)
 scene.add(lightHelper)
 
-addLenflare(light)
-
 const renderer = createRenderer()
 
-// Environment texture
-const environmentTexture = new THREE.CubeTextureLoader()
-  .setPath('img/')
-  .load(['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png'])
-
-scene.environment = environmentTexture
-scene.background = environmentTexture
-
-// Load HDR (optional override)
-async function init() {
-  await new RGBELoader()
-    .loadAsync('img/venice_sunset_1k.hdr')
-    .then(() => {
-      scene.environment = environmentTexture
-      scene.background = environmentTexture
-      scene.environmentIntensity = 1
+async function loadSkybox(showDayTime: boolean) {
+  if(showDayTime)
+  {
+    await new RGBELoader()
+      .loadAsync('img/kloofendal_48d_partly_cloudy_puresky_4k.hdr')
+      .then((hdrTexture) => {
+      hdrTexture.mapping = THREE.EquirectangularReflectionMapping
+      scene.environment = hdrTexture
+      scene.background = hdrTexture
     })
+    addLenflare(light);
+  }else {
+await new RGBELoader()
+      .loadAsync('img/kloppenheim_02_puresky_4k.hdr')
+      .then((hdrTexture) => {
+      hdrTexture.mapping = THREE.EquirectangularReflectionMapping
+      scene.environment = hdrTexture
+      scene.background = hdrTexture
+    })
+  }
 }
-init()
 
 // Replace PointerLockControls with OrbitControls
 const controls = new OrbitControls(camera, renderer.domElement)
@@ -72,11 +72,15 @@ document.body.appendChild(stats.dom)
 const gui = new GUI({ width: 400 }).open()
 const config = {
   animateCars: true,
-  animateDrones: true
+  animateDrones: true,
+  showDayTime: true,
 }
 
-gui.add(config, 'animateCars').name('Enable Car Animation')
-gui.add(config, 'animateDrones').name('Enable Drone Animation')
+gui.add(config, 'animateCars').name('Enable car animation')
+gui.add(config, 'animateDrones').name('Enable drone animation')
+gui.add(config, 'showDayTime').name('Show map in day time').onChange((value) => loadSkybox(value))
+
+loadSkybox(config.showDayTime);
 
 const clock = new THREE.Clock()
 
