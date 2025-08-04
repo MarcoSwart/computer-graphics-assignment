@@ -22,6 +22,7 @@ const lightHelper = createLightHelper(light)
 scene.add(lightHelper)
 
 const renderer = createRenderer()
+renderer.shadowMap.enabled = true;
 
 async function loadSkybox(showDayTime: boolean) {
   if(showDayTime)
@@ -30,16 +31,16 @@ async function loadSkybox(showDayTime: boolean) {
       .loadAsync('img/kloofendal_48d_partly_cloudy_puresky_4k.hdr')
       .then((hdrTexture) => {
       hdrTexture.mapping = THREE.EquirectangularReflectionMapping
-      scene.environment = hdrTexture
+      // scene.environment = hdrTexture
       scene.background = hdrTexture
     })
-    addLenflare(light);
+    // addLenflare(light);
   }else {
 await new RGBELoader()
       .loadAsync('img/kloppenheim_02_puresky_4k.hdr')
       .then((hdrTexture) => {
       hdrTexture.mapping = THREE.EquirectangularReflectionMapping
-      scene.environment = hdrTexture
+      // scene.environment = hdrTexture
       scene.background = hdrTexture
     })
   }
