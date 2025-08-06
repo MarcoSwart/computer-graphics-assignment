@@ -14,6 +14,7 @@ export function addCityLayout(scene: THREE.Scene) {
   const roadGeometries: THREE.BufferGeometry[] = [];
   const lineGeometries: THREE.BufferGeometry[] = [];
   const lightPoleGeometries: THREE.BufferGeometry[] = [];
+  const lightBulbGeometries: THREE.BufferGeometry[] = [];
 
   const rows = 10;
   const cols = 10;
@@ -34,8 +35,8 @@ export function addCityLayout(scene: THREE.Scene) {
   facadeTexture.wrapS = facadeTexture.wrapT = THREE.RepeatWrapping;
   facadeTexture.repeat.set(2, 4);
 
-  // const buildingMaterial = new THREE.MeshStandardMaterial({ map: facadeTexture, bumpScale: 0.5, roughness: 0.3, metalness: 0.6, flatShading: true });
-  const buildingMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00, flatShading: true });
+  const buildingMaterial = new THREE.MeshStandardMaterial({ map: facadeTexture, bumpScale: 0.5, roughness: 0.3, metalness: 0.6, flatShading: true });
+  // const buildingMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00, flatShading: true });
   const sidewalkMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
   const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
   const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
@@ -65,11 +66,13 @@ export function addCityLayout(scene: THREE.Scene) {
         const poleGeo = new THREE.CylinderGeometry(0.15, 0.15, poleHeight);
         poleGeo.translate(poleX, poleHeight / 2, poleZ);
         lightPoleGeometries.push(poleGeo);
-        const bulbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), glowMaterial);
-        // const bulbMesh = new THREE.PointLight(0x00ffcc, 20, 25, 0.2);
-        bulbMesh.position.set(poleX, poleHeight + 0.2, poleZ);
-        bulbMesh.castShadow = true;
-        scene.add(bulbMesh);
+        const bulbMesh = new THREE.SphereGeometry(0.3, 8, 8);
+        bulbMesh.translate(poleX, poleHeight + 0.2, poleZ);
+        lightBulbGeometries.push(bulbMesh);
+        const bulbMeshLight = new THREE.PointLight(0xffcc66, 15, 10, 1);
+        bulbMeshLight.position.set(poleX, poleHeight + 0.2, poleZ);
+        bulbMeshLight.castShadow = false;
+        scene.add(bulbMeshLight);
       }
 
       // Sidewalk
@@ -108,6 +111,7 @@ export function addCityLayout(scene: THREE.Scene) {
   const roadMesh = safeMerge(roadGeometries, roadMaterial);
   const lineMesh = safeMerge(lineGeometries, lineMaterial);
   const lightPolesMesh = safeMerge(lightPoleGeometries, lightPoleMaterial);
+  const lightBulbMesh = safeMerge(lightBulbGeometries, glowMaterial);
 
   if (buildingMesh) {
     buildingMesh.castShadow = true;
@@ -118,6 +122,7 @@ export function addCityLayout(scene: THREE.Scene) {
   if (roadMesh) scene.add(roadMesh);
   if (lineMesh) scene.add(lineMesh);
   if (lightPolesMesh) scene.add(lightPolesMesh);
+  if(lightBulbMesh) scene.add(lightBulbMesh);
 
   // Neon billboard
   const billboardWidth = 20;
