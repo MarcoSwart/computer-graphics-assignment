@@ -7,14 +7,11 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 export const flyingCars: THREE.Object3D[] = [];
 export const drones: THREE.Object3D[] = [];
 
-export function addCityLayout(scene: THREE.Scene) {
-
+export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   const buildingGeometries: THREE.BufferGeometry[] = [];
   const sidewalkGeometries: THREE.BufferGeometry[] = [];
   const roadGeometries: THREE.BufferGeometry[] = [];
   const lineGeometries: THREE.BufferGeometry[] = [];
-  const lightPoleGeometries: THREE.BufferGeometry[] = [];
-  const lightBulbGeometries: THREE.BufferGeometry[] = [];
 
   const rows = 10;
   const cols = 10;
@@ -35,13 +32,47 @@ export function addCityLayout(scene: THREE.Scene) {
   facadeTexture.wrapS = facadeTexture.wrapT = THREE.RepeatWrapping;
   facadeTexture.repeat.set(2, 4);
 
-  const buildingMaterial = new THREE.MeshStandardMaterial({ map: facadeTexture, bumpScale: 0.5, roughness: 0.3, metalness: 0.6, flatShading: true });
-  // const buildingMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00, flatShading: true });
+  const buildingMaterial = new THREE.MeshStandardMaterial({
+    map: facadeTexture,
+    bumpScale: 0.5,
+    roughness: 0.3,
+    metalness: 0.6,
+    flatShading: true
+  });
   const sidewalkMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
   const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
   const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
   const lightPoleMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
-  const glowMaterial = new THREE.MeshStandardMaterial({ color: 0xffeeaa, emissive: 0xffcc66, emissiveIntensity: 1.2, metalness: 0.2, roughness: 0.7 });
+  const glowMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffeeaa,
+    emissive: 0xffcc66,
+    emissiveIntensity: 1.2,
+    metalness: 0.2,
+    roughness: 0.7
+  });
+
+  // Create pole & bulb base geometries
+  const poleHeight = 8;
+  const poleGeometry = new THREE.CylinderGeometry(0.15, 0.15, poleHeight);
+  const bulbGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+
+  // Count poles for instancing
+  let poleCount = 0;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (!(row === centerRow && col === centerCol)) poleCount++;
+    }
+  }
+
+  // Create InstancedMeshes
+  const polesMesh = new THREE.InstancedMesh(poleGeometry, lightPoleMaterial, poleCount);
+  const bulbsMesh = new THREE.InstancedMesh(bulbGeometry, glowMaterial, poleCount);
+  polesMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  bulbsMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+  // Store bulb positions for light updates
+  const bulbPositions: THREE.Vector3[] = [];
+  let poleIndex = 0;
 
   // Generate city grid
   for (let row = 0; row < rows; row++) {
@@ -59,20 +90,18 @@ export function addCityLayout(scene: THREE.Scene) {
         buildingGeo.translate(lotX, height / 2, lotZ);
         buildingGeometries.push(buildingGeo);
 
-        // Streetlight pole + bulb
-        const poleHeight = 8;
+        // Streetlight pole & bulb
         const poleX = lotX + (buildingSize + sidewalkSize) / 2 - 1;
         const poleZ = lotZ + (buildingSize + sidewalkSize) / 2 - 1;
-        const poleGeo = new THREE.CylinderGeometry(0.15, 0.15, poleHeight);
-        poleGeo.translate(poleX, poleHeight / 2, poleZ);
-        lightPoleGeometries.push(poleGeo);
-        const bulbMesh = new THREE.SphereGeometry(0.3, 8, 8);
-        bulbMesh.translate(poleX, poleHeight + 0.2, poleZ);
-        lightBulbGeometries.push(bulbMesh);
-        const bulbMeshLight = new THREE.PointLight(0xffcc66, 15, 10, 1);
-        bulbMeshLight.position.set(poleX, poleHeight + 0.2, poleZ);
-        bulbMeshLight.castShadow = false;
-        scene.add(bulbMeshLight);
+
+        const poleMatrix = new THREE.Matrix4().makeTranslation(poleX, poleHeight / 2, poleZ);
+        polesMesh.setMatrixAt(poleIndex, poleMatrix);
+
+        const bulbMatrix = new THREE.Matrix4().makeTranslation(poleX, poleHeight + 0.2, poleZ);
+        bulbsMesh.setMatrixAt(poleIndex, bulbMatrix);
+
+        bulbPositions.push(new THREE.Vector3(poleX, poleHeight + 0.2, poleZ));
+        poleIndex++;
       }
 
       // Sidewalk
@@ -102,6 +131,35 @@ export function addCityLayout(scene: THREE.Scene) {
     }
   }
 
+  // Add InstancedMeshes to scene
+  scene.add(polesMesh);
+  scene.add(bulbsMesh);
+
+  // Store streetlight objects
+  const streetLights: THREE.PointLight[] = [];
+
+  // Dynamic update function for closest 8 lights
+  const updateStreetLights = () => {
+    // Remove all existing lights from scene
+    streetLights.forEach(light => scene.remove(light));
+    streetLights.length = 0;
+
+    // Find 8 closest poles to camera
+    const closest = bulbPositions
+      .map(pos => ({ pos, dist: pos.distanceTo(camera.position) }))
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, 8*3);
+
+    // Add real lights for the closest ones
+    closest.forEach(({ pos }) => {
+      const light = new THREE.PointLight(0xffcc66, 15, 10, 1);
+      light.position.copy(pos);
+      light.castShadow = false;
+      scene.add(light);
+      streetLights.push(light);
+    });
+  };
+
   // Merge static meshes
   const safeMerge = (geoms: THREE.BufferGeometry[], mat: THREE.Material) =>
     geoms.length ? new THREE.Mesh(BufferGeometryUtils.mergeGeometries(geoms, false), mat) : null;
@@ -110,8 +168,6 @@ export function addCityLayout(scene: THREE.Scene) {
   const sidewalkMesh = safeMerge(sidewalkGeometries, sidewalkMaterial);
   const roadMesh = safeMerge(roadGeometries, roadMaterial);
   const lineMesh = safeMerge(lineGeometries, lineMaterial);
-  const lightPolesMesh = safeMerge(lightPoleGeometries, lightPoleMaterial);
-  const lightBulbMesh = safeMerge(lightBulbGeometries, glowMaterial);
 
   if (buildingMesh) {
     buildingMesh.castShadow = true;
@@ -121,21 +177,23 @@ export function addCityLayout(scene: THREE.Scene) {
   if (sidewalkMesh) scene.add(sidewalkMesh);
   if (roadMesh) scene.add(roadMesh);
   if (lineMesh) scene.add(lineMesh);
-  if (lightPolesMesh) scene.add(lightPolesMesh);
-  if(lightBulbMesh) scene.add(lightBulbMesh);
 
-  // Neon billboard
+  // Neon billboard (unchanged from before)
   const billboardWidth = 20;
   const billboardHeight = 10;
   const billboardGeo = new THREE.PlaneGeometry(billboardWidth, billboardHeight);
-  const billboardMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x00ffcc, emissiveIntensity: 2, side: THREE.DoubleSide });
+  const billboardMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0x00ffcc,
+    emissiveIntensity: 2,
+    side: THREE.DoubleSide
+  });
   const billboardMesh = new THREE.Mesh(billboardGeo, billboardMat);
   billboardMesh.position.set(centerX, billboardHeight / 2 + 2, centerZ);
   billboardMesh.rotation.y = Math.PI / 2;
   billboardMesh.castShadow = true;
   scene.add(billboardMesh);
 
-  // update matrix for correct normal
   billboardMesh.updateWorldMatrix(true, false);
   const normal = new THREE.Vector3();
   billboardMesh.getWorldDirection(normal);
@@ -144,7 +202,6 @@ export function addCityLayout(scene: THREE.Scene) {
   const flushDistance = 0.5;
   const targetDistance = 20;
 
-  // front spotlight
   const spotFront = new THREE.SpotLight(0x00ffcc);
   spotFront.intensity = 20;
   spotFront.distance  = 25;
@@ -156,7 +213,6 @@ export function addCityLayout(scene: THREE.Scene) {
   scene.add(spotFront, spotFront.target);
   scene.add(new THREE.SpotLightHelper(spotFront));
 
-  // back spotlight
   const spotBack = new THREE.SpotLight(0x00ffcc);
   spotBack.intensity = 20;
   spotBack.distance  = 25;
@@ -168,13 +224,12 @@ export function addCityLayout(scene: THREE.Scene) {
   scene.add(spotBack, spotBack.target);
   scene.add(new THREE.SpotLightHelper(spotBack));
 
-  // loaders for models
+  // Loaders for drones & cars (unchanged)
   const loader = new GLTFLoader();
   const dracoLoader = new DRACOLoader();
   dracoLoader.setDecoderPath('jsm/libs/draco/');
   loader.setDRACOLoader(dracoLoader);
 
-  // Drones
   loader.load('models/drone_compressed.glb', (gltf) => {
     for (let i = 0; i < 8; i++) {
       const drone = gltf.scene.clone();
@@ -195,7 +250,6 @@ export function addCityLayout(scene: THREE.Scene) {
     }
   });
 
-  // Flying cars
   loader.load('models/flying_beetle_car.glb', (gltf) => {
     for (let i = 0; i < 9; i++) {
       const car = gltf.scene.clone();
@@ -216,4 +270,7 @@ export function addCityLayout(scene: THREE.Scene) {
       flyingCars.push(car);
     }
   });
+
+  // Return the update function so it can be called in the render loop
+  return { updateStreetLights };
 }

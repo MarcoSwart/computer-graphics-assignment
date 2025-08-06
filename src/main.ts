@@ -64,7 +64,7 @@ window.addEventListener('resize', () => {
 
 // Add objects to scene
 addPlane(scene)
-addCityLayout(scene)
+const { updateStreetLights } = addCityLayout(scene, camera);
 
 // Stats and GUI
 const stats = new Stats()
@@ -112,6 +112,7 @@ function animate() {
 
   updateFlyingObjects(elapsed)
   light.position.copy(camera.position).add(lightOffset)
+  updateStreetLights(); // keep closest 8 lights updated
   render()
   stats.update()
   controls.update()
