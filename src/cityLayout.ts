@@ -148,7 +148,7 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
     const closest = bulbPositions
       .map(pos => ({ pos, dist: pos.distanceTo(camera.position) }))
       .sort((a, b) => a.dist - b.dist)
-      .slice(0, 8*3);
+      .slice(0, 8);
 
     // Add real lights for the closest ones
     closest.forEach(({ pos }) => {
@@ -251,25 +251,44 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   });
 
   loader.load('models/flying_beetle_car.glb', (gltf) => {
-    for (let i = 0; i < 9; i++) {
-      const car = gltf.scene.clone();
-      car.traverse((child: any) => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-        }
-      });
-      const roadCol = i + 1;
-      const x = roadCol * lotSize - halfCitySize;
-      car.userData.pathStart = new THREE.Vector3(x, 0, -halfCitySize + 10);
-      car.userData.pathEnd   = new THREE.Vector3(x, 0, halfCitySize - 10);
-      car.userData.speed     = 5 + i * 2;
-      car.userData.offset    = Math.random() * 100;
-      car.position.set(x, 14, -halfCitySize + 10);
-      scene.add(car);
-      flyingCars.push(car);
-    }
-  });
+  for (let i = 0; i < 9; i++) {
+    const car = gltf.scene.clone();
+    car.traverse((child: any) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+
+    const roadCol = i + 1;
+    const x = roadCol * lotSize - halfCitySize;
+    car.userData.pathStart = new THREE.Vector3(x, 0, -halfCitySize + 10);
+    car.userData.pathEnd   = new THREE.Vector3(x, 0, halfCitySize - 10);
+    car.userData.speed     = 5 + i * 2;
+    car.userData.offset    = Math.random() * 100;
+    car.position.set(x, 14, -halfCitySize + 10);
+
+    // --- Headlights ---
+    const headlightColor = 0xffffff;
+    const headlightIntensity = 10;
+    const headlightDistance = 20;
+
+    // Left headlight
+    const leftLight = new THREE.PointLight(headlightColor, headlightIntensity, headlightDistance,0.8);
+    leftLight.position.set(-0.6, 0.4, 15); // relative to car model
+    leftLight.castShadow = false;
+    car.add(leftLight);
+
+    // Right headlight
+    const rightLight = new THREE.PointLight(headlightColor, headlightIntensity, headlightDistance,0.8);
+    rightLight.position.set(0.6, 0.4, 15);
+    rightLight.castShadow = false;
+    car.add(rightLight);
+
+    scene.add(car);
+    flyingCars.push(car);
+  }
+});
 
   // Return the update function so it can be called in the render loop
   return { updateStreetLights };
