@@ -32,17 +32,35 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   facadeTexture.wrapS = facadeTexture.wrapT = THREE.RepeatWrapping;
   facadeTexture.repeat.set(2, 4);
 
+  // Flat shading for buildings
   const buildingMaterial = new THREE.MeshStandardMaterial({
-    map: facadeTexture,
-    bumpScale: 0.5,
-    roughness: 0.3,
-    metalness: 0.6,
-    flatShading: true
+  map: facadeTexture,
+  bumpScale: 0.5,
+  roughness: 0.3,
+  metalness: 0.6,
+  flatShading: true
   });
-  const sidewalkMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
-  const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
-  const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-  const lightPoleMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
+  // Gouraud shading for sidewalks
+  const sidewalkMaterial = new THREE.MeshLambertMaterial({
+    color: 0xaaaaaa
+  });
+
+  // Gouraud shading for roads
+  const roadMaterial = new THREE.MeshLambertMaterial({
+    color: 0x333333
+  });
+
+  // Gouraud shading for lane lines
+  const lineMaterial = new THREE.MeshLambertMaterial({
+    color: 0xffffff
+  });
+  // Phong shading for light poles
+  const lightPoleMaterial = new THREE.MeshPhongMaterial({
+    color: 0x222222,
+    shininess: 80,
+    specular: 0x444444
+  });
+
   const glowMaterial = new THREE.MeshStandardMaterial({
     color: 0xffeeaa,
     emissive: 0xffcc66,
@@ -182,12 +200,14 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   const billboardWidth = 20;
   const billboardHeight = 10;
   const billboardGeo = new THREE.PlaneGeometry(billboardWidth, billboardHeight);
-  const billboardMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    emissive: 0x00ffcc,
-    emissiveIntensity: 2,
-    side: THREE.DoubleSide
-  });
+  const billboardMat = new THREE.MeshPhongMaterial({
+  color: 0xffffff,
+  emissive: 0x00ffcc,
+  emissiveIntensity: 2,
+  shininess: 100,
+  specular: 0x00ffff,
+  side: THREE.DoubleSide
+});
   const billboardMesh = new THREE.Mesh(billboardGeo, billboardMat);
   billboardMesh.position.set(centerX, billboardHeight / 2 + 2, centerZ);
   billboardMesh.rotation.y = Math.PI / 2;
