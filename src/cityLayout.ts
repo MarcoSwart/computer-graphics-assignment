@@ -127,25 +127,53 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
       sidewalkGeo.translate(lotX, 0.1, lotZ);
       sidewalkGeometries.push(sidewalkGeo);
 
-      // Roads + lines
-      if (col < cols - 1) {
-        const roadGeoX = new THREE.BoxGeometry(roadSize, 0.1, lotSize);
-        roadGeoX.translate(lotX + lotSize / 2, 0.05, lotZ);
-        roadGeometries.push(roadGeoX);
+// --- Road bounds / helpers ---
+const edgePad = 2.50; // how far inside the border roads should end
+const minB = -halfCitySize + edgePad;
+const maxB =  halfCitySize - edgePad;
 
-        const lineGeoX = new THREE.BoxGeometry(0.2, 0.02, lotSize - 6);
-        lineGeoX.translate(lotX + lotSize / 2, 0.1, lotZ);
-        lineGeometries.push(lineGeoX);
-      }
-      if (row < rows - 1) {
-        const roadGeoZ = new THREE.BoxGeometry(lotSize, 0.1, roadSize);
-        roadGeoZ.translate(lotX, 0.05, lotZ + lotSize / 2);
-        roadGeometries.push(roadGeoZ);
+function addClampedX(x0: number, x1: number, zMid: number) {
+  const a = Math.max(minB, Math.min(x0, x1));
+  const b = Math.min(maxB, Math.max(x0, x1));
+  const len = b - a;
+  if (len <= 0) return;
+  const cx = (a + b) / 2;
 
-        const lineGeoZ = new THREE.BoxGeometry(lotSize - 6, 0.02, 0.2);
-        lineGeoZ.translate(lotX, 0.1, lotZ + lotSize / 2);
-        lineGeometries.push(lineGeoZ);
-      }
+  const road = new THREE.BoxGeometry(len, 0.1, roadSize);
+  road.translate(cx, 0.05, zMid);
+  roadGeometries.push(road);
+
+  const line = new THREE.BoxGeometry(Math.max(0.1, len - 6), 0.02, 0.2);
+  line.translate(cx, 0.1, zMid);
+  lineGeometries.push(line);
+}
+
+function addClampedZ(z0: number, z1: number, xMid: number) {
+  const a = Math.max(minB, Math.min(z0, z1));
+  const b = Math.min(maxB, Math.max(z0, z1));
+  const len = b - a;
+  if (len <= 0) return;
+  const cz = (a + b) / 2;
+
+  const road = new THREE.BoxGeometry(roadSize, 0.1, len);
+  road.translate(xMid, 0.05, cz);
+  roadGeometries.push(road);
+
+  const line = new THREE.BoxGeometry(0.2, 0.02, Math.max(0.1, len - 6));
+  line.translate(xMid, 0.1, cz);
+  lineGeometries.push(line);
+}
+// Horizontal roads (between rows) – run along X
+for (let r = 0; r < rows - 1; r++) {
+  const zMid = -halfCitySize + (r + 1) * lotSize; // centers between row r and r+1
+  addClampedX(-halfCitySize, +halfCitySize, zMid);
+}
+
+// Vertical roads (between columns) – run along Z
+for (let c = 0; c < cols - 1; c++) {
+  const xMid = -halfCitySize + (c + 1) * lotSize; // centers between col c and c+1
+  addClampedZ(-halfCitySize, +halfCitySize, xMid);
+}
     }
   }
 
