@@ -200,7 +200,7 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   const _projView = new THREE.Matrix4();
   const _frustum = new THREE.Frustum();
 
-  // Call this once per frame from your render loop
+  // Call this once per frame from render loop
   const updateStreetLights = () => {
     // Update camera matrices & helpers
     camera.updateMatrixWorld();
@@ -300,26 +300,27 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   const targetDistance = 20;
 
   const spotFront = new THREE.SpotLight(0x00ffcc);
-  spotFront.intensity = 20;
+  spotFront.intensity = 8;
   spotFront.distance = 25;
   spotFront.angle = Math.PI / 4;
-  spotFront.decay = 0.2;
+  spotFront.decay = 0.5;
   spotFront.castShadow = true;
   spotFront.position.copy(billboardMesh.position).addScaledVector(normal, -flushDistance);
   spotFront.target.position.copy(billboardMesh.position).addScaledVector(normal, targetDistance);
   scene.add(spotFront, spotFront.target);
-  scene.add(new THREE.SpotLightHelper(spotFront));
+  // scene.add(new THREE.SpotLightHelper(spotFront));
 
   const spotBack = new THREE.SpotLight(0x00ffcc);
-  spotBack.intensity = 20;
+  spotBack.intensity = 8;
   spotBack.distance = 25;
   spotBack.angle = Math.PI / 4;
-  spotBack.decay = 0.2;
+  spotBack.decay = 0.5;
   spotBack.castShadow = true;
   spotBack.position.copy(billboardMesh.position).addScaledVector(normal, flushDistance);
   spotBack.target.position.copy(billboardMesh.position).addScaledVector(normal, -targetDistance);
   scene.add(spotBack, spotBack.target);
-  scene.add(new THREE.SpotLightHelper(spotBack));
+  // Use to see the angle of the light
+  // scene.add(new THREE.SpotLightHelper(spotBack));
 
   // --- Loaders for drones & cars ---
   const loader = new GLTFLoader();
