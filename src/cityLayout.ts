@@ -170,21 +170,17 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
         poleIndex++;
 
         // ---- Utility box placement (every 4th non-center lot) ----
-// Streetlight uses the (+,+) corner. We cycle through the other 3 corners.
+// Place box at the center of the lot's +Z edge (next to the horizontal road),
+// and keep it parallel to that road (i.e., aligned along X).
 lotCounter++;
 if (lotCounter % 4 === 0) {
-  const off = (buildingSize + sidewalkSize) / 2 - 1.2;
+  const edgeHalf = (buildingSize + sidewalkSize) / 2;
+  const inwardPad = 0.8; // pull slightly inside the sidewalk to avoid z-fighting / curb overlap
 
-  // corners (dx, dz): [-,+], [+,-], [-,-]  (avoids [+,+])
-  const cornerChoices: Array<[number, number]> = [[-off, +off], [+off, -off], [-off, -off]];
-  const idx = Math.floor(lotCounter / 4) % cornerChoices.length;
-  const [dx, dz] = cornerChoices[idx];
+  const x = lotX;                       // centered along X on the lot
+  const z = lotZ + edgeHalf - inwardPad; // at the +Z edge, just inside the sidewalk
 
-  const x = lotX + dx;
-  const z = lotZ + dz;
-
-  // face inward toward lot center so the doors aren’t toward the curb
-  const rotY = Math.atan2(-dz, -dx);
+  const rotY = 0; // parallel to the east–west road (runs along X). If your model's long axis is Z, use Math.PI / 2
 
   utilityTargets.push({ x, z, rotY });
 }
