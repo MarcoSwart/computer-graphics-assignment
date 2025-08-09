@@ -92,6 +92,10 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   // ALSO collect building tops for drone patrols
   const buildingTops: Array<{ x: number; z: number; topY: number; row: number; col: number }> = [];
 
+  // --- Utility boxes: record target positions for every 4th lot (non-center) ---
+  const utilityTargets: Array<{ x: number; z: number; rotY: number }> = [];
+  let lotCounter = 0;
+
   // --- Road helpers (outside loops) ---
   const edgePad = 2.5; // how far inside the border roads should end
   const minB = -halfCitySize + edgePad;
@@ -160,6 +164,26 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
 
         bulbPositions.push(new THREE.Vector3(poleX, poleHeight + 0.2, poleZ));
         poleIndex++;
+
+        // ---- Utility box placement (every 4th non-center lot) ----
+// Streetlight uses the (+,+) corner. We cycle through the other 3 corners.
+lotCounter++;
+if (lotCounter % 4 === 0) {
+  const off = (buildingSize + sidewalkSize) / 2 - 1.2;
+
+  // corners (dx, dz): [-,+], [+,-], [-,-]  (avoids [+,+])
+  const cornerChoices: Array<[number, number]> = [[-off, +off], [+off, -off], [-off, -off]];
+  const idx = Math.floor(lotCounter / 4) % cornerChoices.length;
+  const [dx, dz] = cornerChoices[idx];
+
+  const x = lotX + dx;
+  const z = lotZ + dz;
+
+  // face inward toward lot center so the doors aren’t toward the curb
+  const rotY = Math.atan2(-dz, -dx);
+
+  utilityTargets.push({ x, z, rotY });
+}
       }
 
       // Sidewalk
@@ -316,30 +340,27 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   spotBack.target.position.copy(billboardMesh.position).addScaledVector(normal, -targetDistance);
   scene.add(spotBack, spotBack.target);
 
-  // --- Loaders for drones & cars ---
+  // --- Loaders for drones, cars, and utility boxes ---
   const loader = new GLTFLoader();
   const dracoLoader = new DRACOLoader();
   dracoLoader.setDecoderPath('jsm/libs/draco/');
   loader.setDRACOLoader(dracoLoader);
 
   // ========= ROOFTOP PATROL LOOPS (for 5 drones) =========
-  // Use inner buildings (avoid outermost ring) so paths sit nicely over the city.
   const innerBuildings = buildingTops.filter(b =>
     b.row > 0 && b.row < rows - 1 && b.col > 0 && b.col < cols - 1
   );
 
-  // Helper to pick N well-spaced rooftops
   function pickRooftops(n: number): Array<{ x: number; z: number; y: number }> {
     const picked: Array<{ x: number; z: number; y: number }> = [];
     const attempts = 400;
-    const minDist = lotSize * 1.2; // try to avoid cramped loops
+    const minDist = lotSize * 1.2;
     for (let i = 0; i < attempts && picked.length < n; i++) {
       const b = innerBuildings[Math.floor(Math.random() * innerBuildings.length)];
       const y = b.topY + 30 + Math.random() * 30;
       const ok = picked.every(p => (p.x - b.x) ** 2 + (p.z - b.z) ** 2 > minDist * minDist);
       if (ok) picked.push({ x: b.x, z: b.z, y });
     }
-    // If we still don't have enough, just fill from random
     while (picked.length < n && innerBuildings.length) {
       const b = innerBuildings[Math.floor(Math.random() * innerBuildings.length)];
       picked.push({ x: b.x, z: b.z, y: b.topY + 6 });
@@ -350,9 +371,8 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   function makeLoopFromTops(tops: Array<{ x: number; z: number; y: number }>) {
     const pts = tops.map(t => new THREE.Vector3(t.x, t.y, t.z));
     return new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.25);
-  }
+    }
 
-  // Build 5 small loops (each over ~4 rooftops)
   const rooftopCurves: THREE.CatmullRomCurve3[] = [];
   for (let i = 0; i < 5; i++) {
     rooftopCurves.push(makeLoopFromTops(pickRooftops(4)));
@@ -361,10 +381,8 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
 
   // ========= DRONES (exactly 5) =========
   loader.load('models/drone_compressed.glb', (gltf) => {
-    const UP = new THREE.Vector3(0, 1, 0);
     const FWD = new THREE.Vector3(0, 0, 1);
-
-    const DRONE_COUNT = 3;
+    const DRONE_COUNT = 3; // (Your project previously used 3 here)
     for (let i = 0; i < DRONE_COUNT; i++) {
       const drone = gltf.scene.clone(true);
       drone.traverse((child: any) => {
@@ -374,15 +392,14 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
         }
       });
 
-      // Assign one loop per drone
       const curveIndex = i % rooftopCurves.length;
       const curve = rooftopCurves[curveIndex];
       const length = curveLengths[curveIndex];
 
-      const speedMps = 8 + Math.random() * 6; // a bit slower over roofs
+      const speedMps = 8 + Math.random() * 6;
       const tPerSec  = speedMps / Math.max(1e-3, length);
 
-      const wobbleAmp = 0.5 + Math.random() * 0.3; // smaller weave so they stay over the building
+      const wobbleAmp = 0.5 + Math.random() * 0.3;
       const wobbleHz  = 0.5 + Math.random() * 0.3;
       const bobAmp    = 0.4 + Math.random() * 0.3;
       const bobHz     = 0.6 + Math.random() * 0.3;
@@ -410,7 +427,7 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
     }
   });
 
-  // ========= FLYING CARS (unchanged) =========
+  // ========= FLYING CARS =========
   loader.load('models/flying_beetle_car.glb', (gltf) => {
     for (let i = 0; i < 9; i++) {
       const car = gltf.scene.clone();
@@ -449,7 +466,42 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
     }
   });
 
-  // Concrete road barriers on all four edges (unchanged)
+  // ========= UTILITY BOXES (every 4th lot) =========
+  loader.load('models/utility_box_02_1k.glb', (gltf) => {
+    const src = gltf.scene;
+
+    // collect unscaled minY so we can sit them exactly on the ground (y=0 plane)
+    let minY = Infinity;
+    src.traverse((obj: any) => {
+      if (obj.isMesh) {
+        obj.castShadow = true;
+        obj.receiveShadow = true;
+        obj.geometry?.computeBoundingBox?.();
+        if (obj.geometry?.boundingBox) {
+          minY = Math.min(minY, obj.geometry.boundingBox.min.y);
+        }
+      }
+    });
+    if (!isFinite(minY)) minY = 0;
+
+    const scale = 3; // adjust visibility/size as needed
+
+    for (const t of utilityTargets) {
+      const u = src.clone(true);
+      u.scale.setScalar(scale);
+      u.rotation.y = t.rotY;
+
+      // Ground it using minY so it doesn't sink below the sidewalk
+      const y = -minY * scale + 0.02; // small lift to avoid z-fighting
+      u.position.set(t.x, y, t.z);
+
+      scene.add(u);
+    }
+
+    console.log(`[utility-box] placed: ${utilityTargets.length}`);
+  });
+
+  // Concrete road barriers on all four edges
   loader.load('models/concrete_road_barrier.glb', (gltf) => {
     const barrierModel = gltf.scene;
     const barrierScale = 4;

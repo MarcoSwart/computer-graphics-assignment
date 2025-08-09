@@ -116,7 +116,9 @@ function animate() {
   updateFlyingObjects(elapsed)
   light.position.copy(camera.position).add(lightOffset)
   updateStreetLights(); // keep closest 8 lights updated
-  updateDrones(dt);
+  if (config.animateDrones) {
+    updateDrones(dt)
+  }
   render()
   stats.update()
   controls.update()
