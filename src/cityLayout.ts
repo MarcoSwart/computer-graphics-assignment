@@ -33,13 +33,17 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   facadeTexture.wrapS = facadeTexture.wrapT = THREE.RepeatWrapping;
   facadeTexture.repeat.set(2, 4);
 
+  const facadeNormal = textureLoader.load('textures/facade_windows.png'); // or .jpg
+  facadeNormal.wrapS = facadeNormal.wrapT = THREE.RepeatWrapping;
+  facadeNormal.repeat.copy(facadeTexture.repeat);
+
   // Flat shading for buildings
   const buildingMaterial = new THREE.MeshStandardMaterial({
     map: facadeTexture,
-    bumpScale: 0.5,
+    normalMap: facadeNormal,
     roughness: 0.3,
     metalness: 0.6,
-    flatShading: true
+    flatShading: false
   });
 
   // Gouraud shading for sidewalks
