@@ -89,6 +89,9 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   const bulbPositions: THREE.Vector3[] = [];
   let poleIndex = 0;
 
+  // ALSO collect building tops for drone patrols
+  const buildingTops: Array<{ x: number; z: number; topY: number; row: number; col: number }> = [];
+
   // --- Road helpers (outside loops) ---
   const edgePad = 2.5; // how far inside the border roads should end
   const minB = -halfCitySize + edgePad;
@@ -142,6 +145,9 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
         buildingGeo.translate(lotX, height / 2, lotZ);
         buildingGeometries.push(buildingGeo);
 
+        // Save top for drone routing
+        buildingTops.push({ x: lotX, z: lotZ, topY: height, row, col });
+
         // Streetlight pole & bulb (at lot corner on sidewalk)
         const poleX = lotX + (buildingSize + sidewalkSize) / 2 - 1;
         const poleZ = lotZ + (buildingSize + sidewalkSize) / 2 - 1;
@@ -168,14 +174,12 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   }
 
   // --- Roads between rows/cols (one grid-wide pass) ---
-  // Horizontal roads (between rows) – run along X
   for (let r = 0; r < rows - 1; r++) {
-    const zMid = -halfCitySize + (r + 1) * lotSize; // centers between row r and r+1
+    const zMid = -halfCitySize + (r + 1) * lotSize;
     addClampedX(-halfCitySize, +halfCitySize, zMid);
   }
-  // Vertical roads (between columns) – run along Z
   for (let c = 0; c < cols - 1; c++) {
-    const xMid = -halfCitySize + (c + 1) * lotSize; // centers between col c and c+1
+    const xMid = -halfCitySize + (c + 1) * lotSize;
     addClampedZ(-halfCitySize, +halfCitySize, xMid);
   }
 
@@ -188,21 +192,19 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   const streetLights: THREE.PointLight[] = Array.from({ length: MAX_LIVE_LIGHTS }, () => {
     const l = new THREE.PointLight(0xffcc66, 15, 10, 1.0);
     l.castShadow = false;
-    l.visible = false; // start hidden
+    l.visible = false;
     scene.add(l);
     return l;
   });
 
-  // Reusable temp objects to avoid per-frame allocations
+  // Reusable temp objects
   const _camPos = new THREE.Vector3();
   const _camDir = new THREE.Vector3();
   const _toBulb = new THREE.Vector3();
   const _projView = new THREE.Matrix4();
   const _frustum = new THREE.Frustum();
 
-  // Call this once per frame from render loop
   const updateStreetLights = () => {
-    // Update camera matrices & helpers
     camera.updateMatrixWorld();
     _camPos.setFromMatrixPosition(camera.matrixWorld);
     camera.getWorldDirection(_camDir).normalize();
@@ -210,17 +212,15 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
     _projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     _frustum.setFromProjectionMatrix(_projView);
 
-    // 1) Candidates that are *in front* of the camera and *in the frustum*
     const inFrontVisible: { pos: THREE.Vector3; depth: number; distSq: number }[] = [];
-    // 2) Fallback: in front but outside frustum (slightly off-screen, etc.)
     const inFrontAny: { pos: THREE.Vector3; depth: number; distSq: number }[] = [];
 
     for (let i = 0; i < bulbPositions.length; i++) {
       const pos = bulbPositions[i];
       _toBulb.copy(pos).sub(_camPos);
 
-      const depth = _toBulb.dot(_camDir); // positive => in front
-      if (depth <= 0) continue; // behind camera
+      const depth = _toBulb.dot(_camDir);
+      if (depth <= 0) continue;
 
       const distSq = _toBulb.lengthSq();
 
@@ -231,18 +231,15 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
       }
     }
 
-    // Sort by how they appear in front: prioritize depth, then distance
     const byDepthThenDist = (a: any, b: any) => (a.depth - b.depth) || (a.distSq - b.distSq);
     inFrontVisible.sort(byDepthThenDist);
     inFrontAny.sort(byDepthThenDist);
 
-    // Take up to 8 from visible first, then fill from the fallback list if needed
     const selected = inFrontVisible.slice(0, MAX_LIVE_LIGHTS);
     for (let i = 0; selected.length < MAX_LIVE_LIGHTS && i < inFrontAny.length; i++) {
       selected.push(inFrontAny[i]);
     }
 
-    // Position/enable the live pool
     for (let i = 0; i < MAX_LIVE_LIGHTS; i++) {
       const light = streetLights[i];
       const item = selected[i];
@@ -308,7 +305,6 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   spotFront.position.copy(billboardMesh.position).addScaledVector(normal, -flushDistance);
   spotFront.target.position.copy(billboardMesh.position).addScaledVector(normal, targetDistance);
   scene.add(spotFront, spotFront.target);
-  // scene.add(new THREE.SpotLightHelper(spotFront));
 
   const spotBack = new THREE.SpotLight(0x00ffcc);
   spotBack.intensity = 8;
@@ -319,8 +315,6 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   spotBack.position.copy(billboardMesh.position).addScaledVector(normal, flushDistance);
   spotBack.target.position.copy(billboardMesh.position).addScaledVector(normal, -targetDistance);
   scene.add(spotBack, spotBack.target);
-  // Use to see the angle of the light
-  // scene.add(new THREE.SpotLightHelper(spotBack));
 
   // --- Loaders for drones & cars ---
   const loader = new GLTFLoader();
@@ -328,28 +322,95 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
   dracoLoader.setDecoderPath('jsm/libs/draco/');
   loader.setDRACOLoader(dracoLoader);
 
-  // Drones
+  // ========= ROOFTOP PATROL LOOPS (for 5 drones) =========
+  // Use inner buildings (avoid outermost ring) so paths sit nicely over the city.
+  const innerBuildings = buildingTops.filter(b =>
+    b.row > 0 && b.row < rows - 1 && b.col > 0 && b.col < cols - 1
+  );
+
+  // Helper to pick N well-spaced rooftops
+  function pickRooftops(n: number): Array<{ x: number; z: number; y: number }> {
+    const picked: Array<{ x: number; z: number; y: number }> = [];
+    const attempts = 400;
+    const minDist = lotSize * 1.2; // try to avoid cramped loops
+    for (let i = 0; i < attempts && picked.length < n; i++) {
+      const b = innerBuildings[Math.floor(Math.random() * innerBuildings.length)];
+      const y = b.topY + 30 + Math.random() * 30;
+      const ok = picked.every(p => (p.x - b.x) ** 2 + (p.z - b.z) ** 2 > minDist * minDist);
+      if (ok) picked.push({ x: b.x, z: b.z, y });
+    }
+    // If we still don't have enough, just fill from random
+    while (picked.length < n && innerBuildings.length) {
+      const b = innerBuildings[Math.floor(Math.random() * innerBuildings.length)];
+      picked.push({ x: b.x, z: b.z, y: b.topY + 6 });
+    }
+    return picked;
+  }
+
+  function makeLoopFromTops(tops: Array<{ x: number; z: number; y: number }>) {
+    const pts = tops.map(t => new THREE.Vector3(t.x, t.y, t.z));
+    return new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.25);
+  }
+
+  // Build 5 small loops (each over ~4 rooftops)
+  const rooftopCurves: THREE.CatmullRomCurve3[] = [];
+  for (let i = 0; i < 5; i++) {
+    rooftopCurves.push(makeLoopFromTops(pickRooftops(4)));
+  }
+  const curveLengths = rooftopCurves.map(c => c.getLength());
+
+  // ========= DRONES (exactly 5) =========
   loader.load('models/drone_compressed.glb', (gltf) => {
-    for (let i = 0; i < 8; i++) {
-      const drone = gltf.scene.clone();
+    const UP = new THREE.Vector3(0, 1, 0);
+    const FWD = new THREE.Vector3(0, 0, 1);
+
+    const DRONE_COUNT = 3;
+    for (let i = 0; i < DRONE_COUNT; i++) {
+      const drone = gltf.scene.clone(true);
       drone.traverse((child: any) => {
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
         }
       });
-      const x = -halfCitySize + i * 20;
-      const z = halfCitySize + Math.random() * 60;
-      const baseY = 20 + Math.random() * 5;
-      drone.position.set(x, baseY, z);
-      (drone as any).userData.baseY = baseY;
-      (drone as any).userData.offset = Math.random() * Math.PI * 2;
+
+      // Assign one loop per drone
+      const curveIndex = i % rooftopCurves.length;
+      const curve = rooftopCurves[curveIndex];
+      const length = curveLengths[curveIndex];
+
+      const speedMps = 8 + Math.random() * 6; // a bit slower over roofs
+      const tPerSec  = speedMps / Math.max(1e-3, length);
+
+      const wobbleAmp = 0.5 + Math.random() * 0.3; // smaller weave so they stay over the building
+      const wobbleHz  = 0.5 + Math.random() * 0.3;
+      const bobAmp    = 0.4 + Math.random() * 0.3;
+      const bobHz     = 0.6 + Math.random() * 0.3;
+
+      (drone as any).userData.patrol = {
+        curve,
+        t: Math.random(),
+        tPerSec,
+        wobbleAmp,
+        wobbleHz,
+        bobAmp,
+        bobHz,
+        tiltMaxDeg: 8 + Math.random() * 6
+      };
+
+      const start = curve.getPointAt((drone as any).userData.patrol.t);
+      drone.position.copy(start);
+
+      const tan = curve.getTangentAt((drone as any).userData.patrol.t).normalize();
+      const quat = new THREE.Quaternion().setFromUnitVectors(FWD, tan);
+      drone.quaternion.copy(quat);
+
       scene.add(drone);
       drones.push(drone);
     }
   });
 
-  // Flying cars
+  // ========= FLYING CARS (unchanged) =========
   loader.load('models/flying_beetle_car.glb', (gltf) => {
     for (let i = 0; i < 9; i++) {
       const car = gltf.scene.clone();
@@ -388,17 +449,14 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
     }
   });
 
-  // Concrete road barriers on all four edges
+  // Concrete road barriers on all four edges (unchanged)
   loader.load('models/concrete_road_barrier.glb', (gltf) => {
     const barrierModel = gltf.scene;
-
-    // ---- config ----
-    const barrierScale = 4;            // size of the GLB
-    const yOnRoad = 0.05;              // matches your road top
-    const inward = roadSize / 2 + 1.5; // nudge inside the border so it sits ON the asphalt
-    const twoPerLane = true;           // <- set false for one barrier per lane
-    const laneOffset = Math.min(roadSize * 0.25, 1.0); // sideways offset for the pair
-    // ----------------
+    const barrierScale = 4;
+    const yOnRoad = 0.05;
+    const inward = roadSize / 2 + 1.5;
+    const twoPerLane = true;
+    const laneOffset = Math.min(roadSize * 0.25, 1.0);
 
     barrierModel.scale.setScalar(barrierScale);
 
@@ -435,7 +493,7 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
       });
     };
 
-    // RIGHT edge (end of horizontal roads): x near +halfCitySize
+    // RIGHT edge
     {
       const x = halfCitySize - inward;
       const centers = Array.from({ length: rows - 1 }, (_, row) => ({
@@ -445,7 +503,7 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
       makeBarriers(centers, Math.PI / 2, 'z');
     }
 
-    // LEFT edge (start of horizontal roads): x near -halfCitySize
+    // LEFT edge
     {
       const x = -halfCitySize + inward;
       const centers = Array.from({ length: rows - 1 }, (_, row) => ({
@@ -455,7 +513,7 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
       makeBarriers(centers, Math.PI / 2, 'z');
     }
 
-    // BOTTOM edge (end of vertical roads): z near +halfCitySize
+    // BOTTOM edge
     {
       const z = halfCitySize - inward;
       const centers = Array.from({ length: cols - 1 }, (_, col) => ({
@@ -465,7 +523,7 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
       makeBarriers(centers, 0, 'x');
     }
 
-    // TOP edge (start of vertical roads): z near -halfCitySize
+    // TOP edge
     {
       const z = -halfCitySize + inward;
       const centers = Array.from({ length: cols - 1 }, (_, col) => ({
@@ -476,6 +534,55 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
     }
   });
 
+  // ========= DRONE UPDATE =========
+  const _tmpPos = new THREE.Vector3();
+  const _tmpTan = new THREE.Vector3();
+  const _right   = new THREE.Vector3();
+  const _quat    = new THREE.Quaternion();
+  const _fwd     = new THREE.Vector3(0, 0, 1);
+  const _up      = new THREE.Vector3(0, 1, 0);
+
+  const updateDrones = (dt: number) => {
+    if (!dt || dt <= 0) dt = 1 / 60;
+
+    for (const d of drones) {
+      const patrol = (d as any).userData?.patrol as
+        | {
+            curve: THREE.Curve<THREE.Vector3>;
+            t: number;
+            tPerSec: number;
+            wobbleAmp: number;
+            wobbleHz: number;
+            bobAmp: number;
+            bobHz: number;
+            tiltMaxDeg: number;
+          }
+        | undefined;
+
+      if (!patrol) continue;
+
+      patrol.t = (patrol.t + patrol.tPerSec * dt) % 1;
+
+      patrol.curve.getPointAt(patrol.t, _tmpPos);
+      patrol.curve.getTangentAt(patrol.t, _tmpTan).normalize();
+
+      _right.crossVectors(_up, _tmpTan).normalize();
+      const time = performance.now() * 0.001;
+      const lateral = Math.sin(time * (Math.PI * 2) * patrol.wobbleHz) * patrol.wobbleAmp;
+      const bob = Math.sin(time * (Math.PI * 2) * patrol.bobHz) * patrol.bobAmp;
+
+      d.position.copy(_tmpPos).addScaledVector(_right, lateral);
+      d.position.y += bob;
+
+      _quat.setFromUnitVectors(_fwd, _tmpTan);
+      const rollRad = THREE.MathUtils.degToRad(
+        THREE.MathUtils.clamp(-lateral * 10, -patrol.tiltMaxDeg, patrol.tiltMaxDeg)
+      );
+      const rollQuat = new THREE.Quaternion().setFromAxisAngle(_tmpTan, rollRad);
+      d.quaternion.copy(_quat).multiply(rollQuat);
+    }
+  };
+
   // Return the update function so it can be called in the render loop
-  return { updateStreetLights };
+  return { updateStreetLights, updateDrones };
 }

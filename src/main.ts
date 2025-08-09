@@ -66,7 +66,7 @@ window.addEventListener('resize', () => {
 
 // Add objects to scene
 addPlane(scene)
-const { updateStreetLights } = addCityLayout(scene, camera);
+const { updateStreetLights, updateDrones } = addCityLayout(scene, camera);
 
 // Stats and GUI
 const stats = new Stats()
@@ -111,10 +111,12 @@ function updateFlyingObjects(t: number) {
 function animate() {
   requestAnimationFrame(animate)
   const elapsed = clock.getElapsedTime()
+  const dt = clock.getDelta();
 
   updateFlyingObjects(elapsed)
   light.position.copy(camera.position).add(lightOffset)
   updateStreetLights(); // keep closest 8 lights updated
+  updateDrones(dt);
   render()
   stats.update()
   controls.update()
