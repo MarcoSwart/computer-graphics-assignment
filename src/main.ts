@@ -1,3 +1,4 @@
+// main.ts
 import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
@@ -25,30 +26,29 @@ const renderer = createRenderer()
 renderer.shadowMap.enabled = true;
 
 async function loadSkybox(showDayTime: boolean) {
-  if(showDayTime)
-  {
+  if (showDayTime) {
     await new RGBELoader()
       .loadAsync('img/kloofendal_48d_partly_cloudy_puresky_4k.hdr')
       .then((hdrTexture) => {
-      hdrTexture.mapping = THREE.EquirectangularReflectionMapping
-      scene.environment = hdrTexture
-      scene.environmentIntensity = 0.5
-      scene.background = hdrTexture
-    })
+        hdrTexture.mapping = THREE.EquirectangularReflectionMapping
+        scene.environment = hdrTexture
+        scene.environmentIntensity = 0.5
+        scene.background = hdrTexture
+      })
     addLenflare(light);
-  }else {
-await new RGBELoader()
+  } else {
+    await new RGBELoader()
       .loadAsync('img/kloppenheim_02_puresky_4k.hdr')
       .then((hdrTexture) => {
-      hdrTexture.mapping = THREE.EquirectangularReflectionMapping
-      scene.environment = hdrTexture
-      scene.environmentIntensity = 0.4
-      scene.background = hdrTexture
-    })
+        hdrTexture.mapping = THREE.EquirectangularReflectionMapping
+        scene.environment = hdrTexture
+        scene.environmentIntensity = 0.4
+        scene.background = hdrTexture
+      })
   }
 }
 
-// Replace PointerLockControls with OrbitControls
+// Controls
 const controls = new OrbitControls(camera, renderer.domElement)
 controls.enableDamping = true
 controls.dampingFactor = 0.05
@@ -56,7 +56,7 @@ controls.minDistance = 5
 controls.maxDistance = 200
 controls.maxPolarAngle = Math.PI / 2.1
 
-// Handle resize
+// Resize
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
   camera.updateProjectionMatrix()
@@ -64,11 +64,11 @@ window.addEventListener('resize', () => {
   render()
 })
 
-// Add objects to scene
+// Scene content
 addPlane(scene)
-const { updateStreetLights, updateDrones } = addCityLayout(scene, camera);
+const { updateNightLights, updateDrones } = addCityLayout(scene, camera);
 
-// Stats and GUI
+// Stats + GUI
 const stats = new Stats()
 document.body.appendChild(stats.dom)
 
@@ -81,16 +81,24 @@ const config = {
 
 gui.add(config, 'animateCars').name('Enable car animation')
 gui.add(config, 'animateDrones').name('Enable drone animation')
-gui.add(config, 'showDayTime').name('Show map in day time').onChange((value) => loadSkybox(value))
+gui.add(config, 'showDayTime')
+  .name('Show map in day time')
+  .onChange((value: boolean) => {
+    // Switch skybox and lights immediately
+    loadSkybox(value)
+    updateNightLights(!value) // lights ON at night, OFF at day
+  })
 
-loadSkybox(config.showDayTime);
+// Initial skybox + light state
+await loadSkybox(config.showDayTime)
+updateNightLights(!config.showDayTime)
 
 const clock = new THREE.Clock()
 
 function updateFlyingObjects(t: number) {
   if (config.animateCars) {
     flyingCars.forEach((car, i) => {
-      const { pathStart, pathEnd, speed, offset } = car.userData
+      const { pathStart, pathEnd, speed, offset } = (car as any).userData
       const total = 200
       const tMod = ((t * speed + offset) % total) / total
       const dir = tMod < 0.5 ? 1 : -1
@@ -102,23 +110,24 @@ function updateFlyingObjects(t: number) {
   }
 
   if (config.animateDrones) {
-  drones.forEach((drone, i) => {
-    drone.position.y = 50 + Math.sin(t * 3 + i) * 2
-  })
-}
+    drones.forEach((drone, i) => {
+      drone.position.y = 50 + Math.sin(t * 3 + i) * 2
+    })
+  }
 }
 
 function animate() {
   requestAnimationFrame(animate)
   const elapsed = clock.getElapsedTime()
-  const dt = clock.getDelta();
+  const dt = clock.getDelta()
 
   updateFlyingObjects(elapsed)
   light.position.copy(camera.position).add(lightOffset)
-  updateStreetLights(); // keep closest 8 lights updated
-  if (config.animateDrones) {
-    updateDrones(dt)
-  }
+
+  // Keep the closest streetlights updated when they are ON
+  updateNightLights(!config.showDayTime)
+
+  if (config.animateDrones) updateDrones(dt)
   render()
   stats.update()
   controls.update()
