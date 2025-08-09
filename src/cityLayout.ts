@@ -308,6 +308,105 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
     }
   });
 
+  // Load concrete road barriers on all four edges, with optional pair-per-lane
+loader.load('models/concrete_road_barrier.glb', (gltf) => {
+  const barrierModel = gltf.scene;
+
+  // ---- config ----
+  const barrierScale = 4;            // size of the GLB
+  const yOnRoad = 0.05;              // matches your road top
+  const inward = roadSize / 2 + 1.5; // nudge inside the border so it sits ON the asphalt
+  const twoPerLane = true;           // <- set false for one barrier per lane
+  const laneOffset = Math.min(roadSize * 0.25, 1.0); // sideways offset for the pair
+  // ----------------
+
+  barrierModel.scale.setScalar(barrierScale);
+
+  // Make sure the barriers actually reflect the environment:
+  barrierModel.traverse((obj: any) => {
+    if (obj.isMesh && obj.material) {
+      const m = obj.material as THREE.MeshStandardMaterial;
+      m.envMapIntensity = 1.2; // boost reflection strength
+      m.metalness = 0.05; // concrete is not metal
+      m.roughness = 0.45; // a bit glossy to catch highlights
+      m.needsUpdate = true;
+
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+    }
+  });
+
+  // Helpers
+  const makeBarriers = (
+    centers: Array<{ x: number; z: number }>,
+    rotationY: number,
+    lateralAxis: "x" | "z"
+  ) => {
+    const laterals = twoPerLane ? [-laneOffset, laneOffset] : [0];
+    centers.forEach(({ x, z }) => {
+      laterals.forEach((off) => {
+        const b = barrierModel.clone();
+        if (lateralAxis === "x") {
+          b.position.set(x + off, yOnRoad, z);
+        } else {
+          b.position.set(x, yOnRoad, z + off);
+        }
+        b.rotation.y = rotationY;
+        scene.add(b);
+      });
+    });
+  };
+
+  // Centers for roads:
+  // - Horizontal roads run along X and are centered at:
+  //   z = -halfCitySize + (row+1)*lotSize  for row = 0..rows-2
+  // - Vertical roads run along Z and are centered at:
+  //   x = -halfCitySize + (col+1)*lotSize  for col = 0..cols-2
+
+  // RIGHT edge (end of horizontal roads): x near +halfCitySize
+  {
+    const x = halfCitySize - inward;              // on road end
+    const centers = Array.from({ length: rows - 1 }, (_, row) => ({
+      x,
+      z: -halfCitySize + (row + 1) * lotSize,
+    }));
+    // Horizontal road → lateral axis is Z; barrier perpendicular to road → rotate 90°
+    makeBarriers(centers, Math.PI / 2, "z");
+  }
+
+  // LEFT edge (start of horizontal roads): x near -halfCitySize
+  {
+    const x = -halfCitySize + inward;
+    const centers = Array.from({ length: rows - 1 }, (_, row) => ({
+      x,
+      z: -halfCitySize + (row + 1) * lotSize,
+    }));
+    makeBarriers(centers, Math.PI / 2, "z");
+  }
+
+  // BOTTOM edge (end of vertical roads): z near +halfCitySize
+  {
+    const z = halfCitySize - inward;
+    const centers = Array.from({ length: cols - 1 }, (_, col) => ({
+      x: -halfCitySize + (col + 1) * lotSize,
+      z,
+    }));
+    // Vertical road → lateral axis is X; barrier perpendicular to road → rotation 0
+    makeBarriers(centers, 0, "x");
+  }
+
+  // TOP edge (start of vertical roads): z near -halfCitySize
+  {
+    const z = -halfCitySize + inward;
+    const centers = Array.from({ length: cols - 1 }, (_, col) => ({
+      x: -halfCitySize + (col + 1) * lotSize,
+      z,
+    }));
+    makeBarriers(centers, 0, "x");
+  }
+});
+
+
   // Return the update function so it can be called in the render loop
   return { updateStreetLights };
 }
