@@ -1,4 +1,3 @@
-// cityLayout.ts
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -383,7 +382,6 @@ export function addCityLayout(scene: THREE.Scene, camera: THREE.Camera) {
 
   // ========= DRONES (exactly 3 here; adjust if needed) =========
   loader.load('models/drone_compressed.glb', (gltf) => {
-    const FWD = new THREE.Vector3(0, 0, 1);
     const DRONE_COUNT = 3;
     for (let i = 0; i < DRONE_COUNT; i++) {
       const drone = gltf.scene.clone(true);

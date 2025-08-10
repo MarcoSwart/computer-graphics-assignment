@@ -90,7 +90,7 @@ gui.add(config, 'showDayTime')
   })
 
 // Initial skybox + light state
-await loadSkybox(config.showDayTime)
+loadSkybox(config.showDayTime)
 updateNightLights(!config.showDayTime)
 
 const clock = new THREE.Clock()
