@@ -21,15 +21,24 @@ export function createLightHelper(light: THREE.DirectionalLight){
     return lightHelper;
 }
 
-export function addLenflare(light: THREE.DirectionalLight) {
-const textureLoader = new THREE.TextureLoader()
-const textureFlare0 = textureLoader.load('img/lensflare0.png')
-const textureFlare3 = textureLoader.load('img/lensflare3.png')
-const lensflare = new Lensflare()
-lensflare.addElement(new LensflareElement(textureFlare0, 1000, 0))
-lensflare.addElement(new LensflareElement(textureFlare3, 500, 0.2))
-lensflare.addElement(new LensflareElement(textureFlare3, 250, 0.8))
-lensflare.addElement(new LensflareElement(textureFlare3, 125, 0.6))
-lensflare.addElement(new LensflareElement(textureFlare3, 62.5, 0.4))
-light.add(lensflare)
+export function addLenflare(light: THREE.DirectionalLight, showDayTime: boolean) {
+  let flare: Lensflare | undefined = light.userData.lensflare
+
+  if (!flare) {
+    const textureLoader = new THREE.TextureLoader()
+    const textureFlare0 = textureLoader.load('img/lensflare0.png')
+    const textureFlare3 = textureLoader.load('img/lensflare3.png')
+
+    flare = new Lensflare()
+    flare.addElement(new LensflareElement(textureFlare0, 1000, 0))
+    flare.addElement(new LensflareElement(textureFlare3, 500, 0.2))
+    flare.addElement(new LensflareElement(textureFlare3, 250, 0.8))
+    flare.addElement(new LensflareElement(textureFlare3, 125, 0.6))
+    flare.addElement(new LensflareElement(textureFlare3, 62.5, 0.4))
+
+    light.add(flare)
+    light.userData.lensflare = flare
+  }
+
+  flare.visible = !!showDayTime
 }

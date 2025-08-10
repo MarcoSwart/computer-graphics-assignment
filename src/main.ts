@@ -35,7 +35,7 @@ async function loadSkybox(showDayTime: boolean) {
         scene.environmentIntensity = 0.5
         scene.background = hdrTexture
       })
-    addLenflare(light);
+    addLenflare(light, showDayTime);
   } else {
     await new RGBELoader()
       .loadAsync('img/kloppenheim_02_puresky_4k.hdr')
@@ -45,6 +45,7 @@ async function loadSkybox(showDayTime: boolean) {
         scene.environmentIntensity = 0.4
         scene.background = hdrTexture
       })
+      addLenflare(light, showDayTime);
   }
 }
 
